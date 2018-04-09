@@ -157,6 +157,13 @@ BPFStackTable::BPFStackTable(const TableDesc& desc,
   };
 }
 
+BPFStackTable::BPFStackTable(BPFStackTable&& that) :
+  BPFTableBase<int, stacktrace_t>(that.desc),
+  symbol_option_(std::move(that.symbol_option_)),
+  pid_sym_(std::move(that.pid_sym_)) {
+    that.pid_sym_.clear();
+}
+
 BPFStackTable::~BPFStackTable() {
   for (auto it : pid_sym_)
     bcc_free_symcache(it.second, it.first);
@@ -171,6 +178,8 @@ void BPFStackTable::clear_table_non_atomic() {
 std::vector<uintptr_t> BPFStackTable::get_stack_addr(int stack_id) {
   std::vector<uintptr_t> res;
   stacktrace_t stack;
+  if (stack_id < 0)
+    return res;
   if (!lookup(&stack_id, &stack))
     return res;
   for (int i = 0; (i < BPF_MAX_STACK_DEPTH) && (stack.ip[i] != 0); i++)
@@ -182,6 +191,8 @@ std::vector<std::string> BPFStackTable::get_stack_symbol(int stack_id,
                                                          int pid) {
   auto addresses = get_stack_addr(stack_id);
   std::vector<std::string> res;
+  if (addresses.empty())
+    return res;
   res.reserve(addresses.size());
 
   if (pid < 0)
@@ -295,14 +306,13 @@ StatusTuple BPFPerfBuffer::close_all_cpu() {
   return StatusTuple(0);
 }
 
-void BPFPerfBuffer::poll(int timeout_ms) {
+int BPFPerfBuffer::poll(int timeout_ms) {
   if (epfd_ < 0)
-    return;
+    return -1;
   int cnt = epoll_wait(epfd_, ep_events_.get(), cpu_readers_.size(), timeout_ms);
-  if (cnt <= 0)
-    return;
   for (int i = 0; i < cnt; i++)
     perf_reader_event_read(static_cast<perf_reader*>(ep_events_[i].data.ptr));
+  return cnt;
 }
 
 BPFPerfBuffer::~BPFPerfBuffer() {

@@ -289,6 +289,7 @@ class BPFStackTable : public BPFTableBase<int, stacktrace_t> {
   BPFStackTable(const TableDesc& desc,
                 bool use_debug_file,
                 bool check_debug_file_crc);
+  BPFStackTable(BPFStackTable&& that);
   ~BPFStackTable();
 
   void clear_table_non_atomic();
@@ -309,7 +310,7 @@ class BPFPerfBuffer : public BPFTableBase<int, int> {
   StatusTuple open_all_cpu(perf_reader_raw_cb cb, perf_reader_lost_cb lost_cb,
                            void* cb_cookie, int page_cnt);
   StatusTuple close_all_cpu();
-  void poll(int timeout_ms);
+  int poll(int timeout_ms);
 
  private:
   StatusTuple open_on_cpu(perf_reader_raw_cb cb, perf_reader_lost_cb lost_cb,

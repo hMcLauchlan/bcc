@@ -20,6 +20,7 @@ R"********(
 #include <uapi/linux/bpf.h>
 #include <uapi/linux/if_packet.h>
 #include <linux/version.h>
+#include <linux/log2.h>
 
 #ifndef CONFIG_BPF_SYSCALL
 #error "CONFIG_BPF_SYSCALL is undefined, please check your .config or ask your Linux distro to enable this feature"
@@ -184,7 +185,7 @@ struct bpf_stacktrace {
 };
 
 #define BPF_STACK_TRACE(_name, _max_entries) \
-  BPF_TABLE("stacktrace", int, struct bpf_stacktrace, _name, _max_entries)
+  BPF_TABLE("stacktrace", int, struct bpf_stacktrace, _name, roundup_pow_of_two(_max_entries))
 
 #define BPF_PROG_ARRAY(_name, _max_entries) \
   BPF_TABLE("prog", u32, u32, _name, _max_entries)
@@ -329,7 +330,17 @@ static int (*bpf_xdp_adjust_head)(void *ctx, int offset) =
 static int (*bpf_override_return)(void *pt_regs, unsigned long rc) =
   (void *) BPF_FUNC_override_return;
 static int (*bpf_sock_ops_cb_flags_set)(void *skops, int flags) =
-  (void *)BPF_FUNC_sock_ops_cb_flags_set;
+  (void *) BPF_FUNC_sock_ops_cb_flags_set;
+static int (*bpf_msg_redirect_map)(void *msg, void *map, u32 key, u64 flags) =
+  (void *) BPF_FUNC_msg_redirect_map;
+static int (*bpf_msg_apply_bytes)(void *msg, u32 bytes) =
+  (void *) BPF_FUNC_msg_apply_bytes;
+static int (*bpf_msg_cork_bytes)(void *msg, u32 bytes) =
+  (void *) BPF_FUNC_msg_cork_bytes;
+static int (*bpf_msg_pull_data)(void *msg, u32 start, u32 end, u64 flags) =
+  (void *) BPF_FUNC_msg_pull_data;
+static int (*bpf_bind)(void *ctx, void *addr, int addr_len) =
+  (void *) BPF_FUNC_bind;
 
 /* llvm builtin functions that eBPF C program may use to
  * emit BPF_LD_ABS and BPF_LD_IND instructions

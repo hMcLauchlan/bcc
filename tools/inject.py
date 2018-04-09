@@ -11,10 +11,10 @@
 #
 # Intermediate functions(between should_fail_whatever and the top level
 # functions) are responsible for updating the stack to indicate "I have been
-# called and one of my predicate(s) passed" in their entry probes. In their exit probes,
-# they do the opposite, popping their stack to maintain correctness. This
-# implementation aims to ensure correctness in edge cases like recursive calls,
-# so there's some additional information stored in pid_struct for that.
+# called and one of my predicate(s) passed" in their entry probes. In their exit
+# probes, they do the opposite, popping their stack to maintain correctness.
+# This implementation aims to ensure correctness in edge cases like recursive
+# calls, so there's some additional information stored in pid_struct for that.
 #
 # At the bottom level function(should_fail_whatever), we do a simple check to
 # ensure all necessary calls/predicates have passed before error injection.
@@ -26,6 +26,8 @@
 # - commit f7174d08a5fc ("mm: make should_failslab always available for fault
 # injection")
 # - CONFIG_BPF_KPROBE_OVERRIDE
+#
+# USAGE: inject [-h] [-I header] [-v]
 #
 # Copyright (c) 2018 Facebook, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License")
@@ -290,8 +292,8 @@ class Tool:
     }
 
     def __init__(self):
-        parser = argparse.ArgumentParser(description="Fail kmalloc and bio" +
-                "when specified conditions are met",
+        parser = argparse.ArgumentParser(description="Fail specified kernel" +
+                " functionality when call chain and predicates are met",
                 formatter_class=argparse.RawDescriptionHelpFormatter)
         parser.add_argument(metavar="mode", dest="mode",
                 help="indicate which base kernel function to fail")
@@ -345,7 +347,7 @@ class Tool:
             count += c == '('
             count -= c == ')'
             if not count:
-                if c == '\0' or (c == '<' and data[i + 1] == '-'):
+                if c == '\0' or (c == '=' and data[i + 1] == '>'):
                     if len(cur_frame) == 2:
                         frame = tuple(cur_frame)
                     elif cur_frame[0][0] == '(':

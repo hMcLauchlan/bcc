@@ -1,23 +1,24 @@
-.TH tcplife 8  "2016-10-19" "USER COMMANDS"
+.TH tcpstates 8  "2018-03-20" "USER COMMANDS"
 .SH NAME
-tcplife \- Trace TCP sessions and summarize lifespan. Uses Linux eBPF/bcc.
+tcpstates \- Trace TCP session state changes with durations. Uses Linux eBPF/bcc.
 .SH SYNOPSIS
-.B tcplife [\-h] [\-T] [\-t] [\-w] [\-s] [\-p PID] [\-D PORTS] [\-L PORTS]
+.B tcpstates [\-h] [\-T] [\-t] [\-w] [\-s] [\-D PORTS] [\-L PORTS]
 .SH DESCRIPTION
-This tool traces TCP sessions that open and close while tracing, and prints
-a line of output to summarize each one. This includes the IP addresses, ports,
-duration, and throughput for the session. This is useful for workload
-characterisation and flow accounting: identifying what connections are
-happening, with the bytes transferred.
+This tool traces TCP session state changes while tracing, and prints details
+including the duration in each state. This can help explain the latency of
+TCP connections: whether the time is spent in the ESTABLISHED state (data
+transfer), or initialization state (SYN_SENT), etc.
 
-This tool works using the sock:inet_sock_set_state tracepoint if it exists,
-added to Linux 4.16, and switches to using kernel dynamic tracing for older
-kernels. Only TCP state changes are traced, so it is expected that the
+This tool works using the sock:inet_sock_set_state tracepoint, which was
+added to Linux 4.16. Linux 4.16 also included extra state transitions so that
+all TCP transitions could be observed by this tracepoint.
+
+Only TCP state changes are traced, so it is expected that the
 overhead of this tool is much lower than typical send/receive tracing.
 
 Since this uses BPF, only the root user can use this tool.
 .SH REQUIREMENTS
-CONFIG_BPF and bcc.
+CONFIG_BPF and bcc, and the sock:inet_sock_set_state tracepoint.
 .SH OPTIONS
 .TP
 \-h
@@ -35,9 +36,6 @@ Include a time column (HH:MM:SS).
 \-w
 Wide column output (fits IPv6 addresses).
 .TP
-\-p PID
-Trace this process ID only (filtered in-kernel).
-.TP
 \-L PORTS
 Comma-separated list of local ports to trace (filtered in-kernel).
 .TP
@@ -45,38 +43,38 @@ Comma-separated list of local ports to trace (filtered in-kernel).
 Comma-separated list of destination ports to trace (filtered in-kernel).
 .SH EXAMPLES
 .TP
-Trace all TCP sessions, and summarize lifespan and throughput:
+Trace all TCP sessions, and show all state changes:
 #
-.B tcplife
+.B tcpstates
 .TP
 Include a timestamp column, and wide column output:
 #
-.B tcplife \-tw
-.TP
-Trace PID 181 only:
-#
-.B tcplife \-p 181
+.B tcpstates \-tw
 .TP
 Trace connections to local ports 80 and 81 only:
 #
-.B tcplife \-L 80,81
+.B tcpstates \-L 80,81
 .TP
 Trace connections to remote port 80 only:
 #
-.B tcplife \-D 80
+.B tcpstates \-D 80
 .SH FIELDS
 .TP
 TIME
-Time of the call, in HH:MM:SS format.
+Time of the change, in HH:MM:SS format.
 .TP
 TIME(s)
-Time of the call, in seconds.
+Time of the change, in seconds.
 .TP
-PID
-Process ID
+C-PID
+The current on-CPU process ID. This may show the process that owns the TCP
+session if the state change executes in synchronous process context, else it
+is likely to show the kernel (asynchronous state change).
 .TP
-COMM
-Process name
+C-COMM
+The current on-CPU process name. This may show the process that owns the TCP
+session if the state change executes in synchronous process context, else it
+is likely to show the kernel (asynchronous state change).
 .TP
 IP
 IP address family (4 or 6)
@@ -93,14 +91,14 @@ Local port.
 DPORT
 Destination port.
 .TP
-TX_KB
-Total transmitted Kbytes.
+OLDSTATE
+Previous TCP state.
 .TP
-RX_KB
-Total received Kbytes.
+NEWSTATE
+New TCP state.
 .TP
 MS
-Lifespan of the session, in milliseconds.
+Duration of this state.
 .SH OVERHEAD
 This traces the kernel TCP set state function, which should be called much
 less often than send/receive tracing, and therefore have lower overhead. The
@@ -127,4 +125,4 @@ Unstable - in development.
 .SH AUTHOR
 Brendan Gregg
 .SH SEE ALSO
-tcpaccept(8), tcpconnect(8), tcptop(8)
+tcpaccept(8), tcpconnect(8), tcptop(8), tcplife(8)
