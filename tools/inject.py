@@ -45,8 +45,9 @@ class Probe:
     }
 
     @classmethod
-    def configure(cls, mode):
+    def configure(cls, mode, probability):
         cls.mode = mode
+        cls.probability = probability
 
     def __init__(self, func, preds, length, entry):
         # length of call chain
@@ -68,15 +69,25 @@ class Probe:
         if not chk:
             return ""
 
+        if Probe.probability == 1:
+            early_pred = "false"
+        else:
+            early_pred = "bpf_get_prandom_u32() < %s" % str(int((1<<32)*Probe.probability))
         # init the map
         # dont do an early exit here so the singular case works automatically
+        # have an early exit for probability option
         enter = """
+        /*
+         * Early exit for probability case
+         */
+        if (%s)
+               return 0;
         /*
          * Top level function init map
          */
         struct pid_struct p_struct = {0, 0};
         m.insert(&pid, &p_struct);
-        """
+        """ % early_pred
 
         # kill the entry
         exit = """
@@ -221,9 +232,9 @@ class Probe:
         if (p->conds_met == %s && %s)
                 bpf_override_return(ctx, %s);
         return 0;
-}""" % (self.prep, self.length, pred, self._get_err(), self.length - 1, pred,
-            self._get_err())
-        return text
+}""" 
+        return text % (self.prep, self.length, pred, self._get_err(), 
+                    self.length - 1, pred, self._get_err())
 
     # presently parses and replaces STRCMP
     # STRCMP exists because string comparison is inconvenient and somewhat buggy
@@ -302,6 +313,9 @@ class Tool:
         parser.add_argument("-I", "--include", action="append",
                 metavar="header",
                 help="additional header files to include in the BPF program")
+        parser.add_argument("-P", "--probability", default=1,
+                metavar="probability", type=float,
+                help="probability that this call chain will fail")
         parser.add_argument("-v", "--verbose", action="store_true",
             help="print BPF program")
         self.args = parser.parse_args()
@@ -315,7 +329,7 @@ class Tool:
     # create_probes and associated stuff
     def _create_probes(self):
         self._parse_spec()
-        Probe.configure(self.args.mode)
+        Probe.configure(self.args.mode, self.args.probability)
         # self, func, preds, total, entry
 
         # create all the pair probes
@@ -425,7 +439,8 @@ struct pid_struct {
 
     def _generate_program(self):
         # leave out auto includes for now
-
+        
+        self.program += '#include <linux/mm.h>\n'
         for include in (self.args.include or []):
             self.program += "#include <%s>\n" % include
 
